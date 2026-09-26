@@ -27,13 +27,15 @@ when a stream goes LIVE.
 
 ## Configuration
 
-Create a `.env` file in the project root:
+Copy `.env.example` to `.env` and fill in your values:
+
+    cp .env.example .env
+
+Then edit `.env`:
 
     BOT_TOKEN=your_token
     USER_ID=your_id
-
     PROXY_URL=http://user:pass@host:port
-
     CHECK_INTERVAL=60
     SEND_LIVE_NOTIFY=1
 
