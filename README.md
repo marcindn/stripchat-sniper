@@ -3,21 +3,54 @@
 Discord bot that monitors selected Stripchat models and sends DM notifications
 when a stream goes LIVE.
 
+---
+
+## Support the project
+
+If this bot is useful to you, you can send a small gift:
+
+**ETH:** `0xdAcfCfF1E567b4d15b1c8D88eC3c80aDb50017b2`
+
+---
+
+## Important notes
+
+This version uses HTML parsing instead of the official Stripchat API.
+Reason: the API endpoint (`/api/front/v2/models/.../cam`) is behind Cloudflare
+and returns HTTP 418 for most datacenter and even some residential proxies.
+The HTML page of the model loads fine, so the bot reads the status directly
+from the rendered page.
+
+Key implementation details:
+
+- HTML is downloaded in streaming mode and parsing stops as soon as the status
+  is found. This keeps proxy bandwidth usage low (usually 400-500 KB per check
+  instead of the full page).
+- `MAX_HTML_BYTES` controls the download limit per check. Default 600000 bytes.
+  Lower values save bandwidth but may miss the status on some pages.
+- No external captcha solver is used. Cloudflare challenge is bypassed by
+  reading public HTML only.
+- No viewer count. Only online/offline detection.
+- Requires a residential or mobile proxy. Datacenter proxies (AWS, OVH,
+  DigitalOcean, most cheap providers) are blocked by Cloudflare and will return
+  418.
+
+---
+
 ## Features
 
 - Monitor multiple models simultaneously
 - DM notifications when a model goes LIVE
-- Editable status embed
 - Quiet mode
-- Proxy support (residential / mobile)
-- Retry, backoff, and cooldown after rate limits
+- Proxy support (residential / mobile recommended)
+- Low proxy bandwidth usage (streaming HTML with early exit)
 - Owner-only commands
 
 ## Requirements
 
 - Python 3.10+
 - Discord bot token
-- (Recommended) residential/mobile proxy
+- Residential or mobile proxy (required, datacenter IPs are blocked)
 
 ## Installation
 
@@ -36,8 +69,10 @@ Then edit `.env`:
     BOT_TOKEN=your_token
     USER_ID=your_id
     PROXY_URL=http://user:pass@host:port
-    CHECK_INTERVAL=60
-    SEND_LIVE_NOTIFY=1
+    CHECK_INTERVAL=1800
+    MAX_HTML_BYTES=600000
+    SESSION_ROTATE_EVERY=100
+    HTTP_TIMEOUT=45
 
 ### Variables
 
@@ -45,10 +80,12 @@ Then edit `.env`:
 |---|---|
 | `BOT_TOKEN` | Bot token from Discord Developer Portal |
 | `USER_ID` | Discord ID of the DM recipient |
-| `PROXY_URL` | Proxy URL. Without it, Stripchat API returns 403 |
-| `CHECK_INTERVAL` | Polling interval in seconds (min. 15, recommended 120-180) |
-| `SEND_LIVE_NOTIFY` | `1` enabled, `0` disabled |
-| `MODELS` | Optional model list (fallback for `models.json`) |
+| `PROXY_URL` | Proxy URL. Required for Stripchat to return HTML 200 |
+| `CHECK_INTERVAL` | Polling interval in seconds (min. 60, recommended 1800) |
+| `MAX_HTML_BYTES` | Max bytes downloaded per check (default 600000) |
+| `SESSION_ROTATE_EVERY` | Rotate HTTP session after N requests (default 100) |
+| `HTTP_TIMEOUT` | Request timeout in seconds (default 45) |
+| `MODELS` | Optional initial model list (fallback for `models.json`) |
 
 ## Running
 
@@ -62,26 +99,18 @@ On first start, `models.json` is created. Add models with the `!add` command.
 |---|---|
 | `!add <name>` | Add a model |
 | `!remove <name>` | Remove a model |
-| `!list` | List monitored models |
-| `!online` | Currently LIVE models |
-| `!status [name]` | Model status / refresh embed |
-| `!test <name>` | Quick live/offline test |
+| `!list` | List monitored models with status |
+| `!check` | Check all models now |
+| `!test <name>` | Quick online/offline test |
 | `!quiet on/off` | Toggle quiet mode |
 | `!help` | Help |
 
 ## Proxy
 
-Interactive configurator:
+Datacenter proxies (AWS, DigitalOcean, OVH, most cheap providers) are blocked
+by Cloudflare for Stripchat. Use residential or mobile proxies.
 
-    python setup_proxy.py
-
-The script checks your IP, tests the proxy and the Stripchat API, then saves
-`PROXY_URL` to `.env`.
-
-Requirements:
-
-- Use residential or mobile proxies
-- Do not use free proxies or datacenter IPs (AWS, DigitalOcean, OVH)
+Recommended: mobile 4G/LTE proxies. They are rarely blocked.
 
 ## License
 
