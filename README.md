@@ -1,9 +1,16 @@
 # Stripchat Discord Monitor
 
-Discord bot that monitors selected Stripchat models and sends DM notifications
-when a stream goes LIVE.
+A lightweight Discord bot that monitors selected Stripchat models and sends you a
+direct message the moment one of them goes LIVE. It runs quietly in the
+background 24/7 on a low cost VPS, using minimal CPU and bandwidth. Notifications
+are sent only on the offline to live transition, so there is no spam or duplicate
+alerts. Setup takes about five minutes.
 
 ---
+
+![file](https://static.iimg.live/uploads/ultimate-photo-2669.png)
+
+
 
 ## Support the project
 
@@ -11,7 +18,6 @@ If this bot is useful to you, you can send a small gift:
 
 **ETH:** `0xdAcfCfF1E567b4d15b1c8D88eC3c80aDb50017b2`
 
----
 
 ## Important notes
 
@@ -114,4 +120,5 @@ Recommended: mobile 4G/LTE proxies. They are rarely blocked.
 
 ## License
 
-MIT
+[MIT](https://opensource.org/license/MIT)
+
