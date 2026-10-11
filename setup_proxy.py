@@ -1,12 +1,6 @@
 # -*- coding: utf-8 -*-
-"""
-setup_proxy.py — interaktywny konfigurator proxy dla bota Stripchat.
-- pyta o dane proxy
-- waliduje format
-- testuje IP (api.ipify.org)
-- testuje Stripchat API (czy zwraca 200 zamiast 418/403)
-- zapisuje PROXY_URL do .env (bezpiecznie, nie nadpisując innych zmiennych)
-"""
+# Interactive proxy setup for stripchat-sniper.
+# Validates format, tests IP and HTML page load, saves PROXY_URL to .env.
 
 import os
 import re
@@ -14,8 +8,6 @@ import sys
 import shutil
 import urllib.parse
 
-# [FIX] Preferuj curl_cffi (z impersonate) jeśli dostępne — test proxy
-# odzwierciedla realne połączenie bota, brak fałszywych negatywów przy CF.
 try:
     from curl_cffi import requests as http_requests
     _IMPERSONATE = "chrome"
@@ -26,17 +18,12 @@ except ImportError:
         _IMPERSONATE = None
         _HTTP_BACKEND = "requests"
     except ImportError:
-        print("[X] Brak 'curl_cffi' ani 'requests'. Zainstaluj: pip install curl_cffi requests")
+        print("[X] missing curl_cffi and requests. install: pip install curl_cffi requests")
         sys.exit(1)
 
 ENV_FILE = ".env"
 IPIFY_URL = "https://api.ipify.org?format=json"
-STRIPCHAT_TEST_URL = "https://stripchat.com/api/front/v2/models/username/test/cam"
-
-UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-      "AppleWebKit/537.36 (KHTML, like Gecko) "
-      "Chrome/124.0.0.0 Safari/537.36")
-HEADERS = {"User-Agent": UA, "Accept": "application/json"}
+STRIPCHAT_TEST_URL = "https://stripchat.com/testmodelnotexist"
 
 
 def green(s):  return f"\033[0;32m{s}\033[0m"
@@ -46,8 +33,9 @@ def cyan(s):   return f"\033[0;36m{s}\033[0m"
 
 
 def _http_get(url, proxies=None, timeout=15, headers=None):
-    """Wrapper: używa curl_cffi jeśli dostępne, inaczej requests."""
-    kwargs = {"timeout": timeout, "headers": headers or HEADERS}
+    kwargs = {"timeout": timeout}
+    if headers:
+        kwargs["headers"] = headers
     if proxies:
         kwargs["proxies"] = proxies
     if _IMPERSONATE:
@@ -62,7 +50,7 @@ def ask(prompt, default=None, required=True):
         if not val and default:
             return default
         if not val and required:
-            print("  ↳ Wartość wymagana.")
+            print("  value required.")
             continue
         return val
 
@@ -75,13 +63,12 @@ def ask_choice(prompt, choices, default=None):
             return default
         if val in choices:
             return val
-        print(f"  ↳ Wybierz jedną z: {', '.join(choices)}")
+        print(f"  choose one of: {', '.join(choices)}")
 
 
 def validate_host(h):
     if not h:
         return False
-    # host: domena lub IP
     return bool(re.match(r"^[a-zA-Z0-9\.\-_]+$", h))
 
 
@@ -109,7 +96,7 @@ def test_ip(proxy_url, timeout=15):
             return r.json().get("ip")
         return None
     except Exception as e:
-        print(f"  ↳ błąd: {e}")
+        print(f"  error: {e}")
         return None
 
 
@@ -123,37 +110,21 @@ def test_direct_ip(timeout=10):
     return None
 
 
-def test_stripchat(proxy_url, timeout=20):
+def test_stripchat_html(proxy_url, timeout=30):
     proxies = {"http": proxy_url, "https": proxy_url}
+    headers = {
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Referer": "https://stripchat.com/",
+    }
     try:
-        r = _http_get(STRIPCHAT_TEST_URL, proxies=proxies, timeout=timeout)
+        r = _http_get(STRIPCHAT_TEST_URL, proxies=proxies, timeout=timeout, headers=headers)
         return r.status_code
     except Exception as e:
-        print(f"  ↳ błąd: {e}")
+        print(f"  error: {e}")
         return None
 
 
-def read_env():
-    if not os.path.exists(ENV_FILE):
-        return {}
-    out = {}
-    with open(ENV_FILE, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.rstrip("\n")
-            if not line or line.lstrip().startswith("#"):
-                continue
-            if "=" in line:
-                k, v = line.split("=", 1)
-                out[k.strip()] = v
-    return out
-
-
 def write_env(updates: dict):
-    """
-    Bezpiecznie aktualizuje .env — zachowuje inne zmienne i komentarze.
-    [FIX] Backup robiony PRZED modyfikacją (kopiujemy oryginał, nie nową treść).
-    """
-    # 1) Prawdziwy backup — kopia oryginalnego pliku przed modyfikacją
     if os.path.exists(ENV_FILE):
         try:
             shutil.copy2(ENV_FILE, ENV_FILE + ".bak")
@@ -164,7 +135,6 @@ def write_env(updates: dict):
         except Exception:
             pass
 
-    # 2) Odczyt + podmiana wpisów
     lines = []
     seen = set()
     if os.path.exists(ENV_FILE):
@@ -179,7 +149,6 @@ def write_env(updates: dict):
                         continue
                 lines.append(line if line.endswith("\n") else line + "\n")
 
-    # dopisz brakujące
     for k, v in updates.items():
         if k not in seen:
             lines.append(f"{k}={v}\n")
@@ -195,100 +164,93 @@ def write_env(updates: dict):
 
 def main():
     print(cyan("=" * 60))
-    print(cyan(" setup_proxy.py — konfiguracja proxy"))
-    print(cyan(f" backend HTTP: {_HTTP_BACKEND}"
+    print(cyan(" setup_proxy.py - proxy configuration"))
+    print(cyan(f" http backend: {_HTTP_BACKEND}"
                + (f" (impersonate={_IMPERSONATE})" if _IMPERSONATE else "")))
     print(cyan("=" * 60))
 
-    # --- 1. Wykryj obecne IP (bez proxy) ---
-    print("\n[1/6] Sprawdzam Twoje obecne IP (bez proxy)...")
+    print("\n[1/5] checking your current IP (direct)...")
     direct_ip = test_direct_ip()
     if direct_ip:
-        print(f"      Twoje IP: {yellow(direct_ip)}")
+        print(f"      your IP: {yellow(direct_ip)}")
     else:
-        print(yellow("      Nie udało się ustalić IP (może być już blokada)"))
+        print(yellow("      could not detect IP (may be blocked)"))
 
-    # --- 2. Zbierz dane proxy ---
-    print("\n[2/6] Podaj dane proxy:")
-    scheme = ask_choice("Typ proxy (http/socks5/socks4)", ["http", "socks5", "socks4"], "http")
+    print("\n[2/5] proxy details:")
+    scheme = ask_choice("proxy type (http/socks5/socks4)", ["http", "socks5", "socks4"], "http")
 
     host = ""
     while not validate_host(host):
-        host = ask("Adres hosta (np. proxy.example.com)")
+        host = ask("host (e.g. proxy.example.com)")
         if not validate_host(host):
-            print("  ↳ Nieprawidłowy host.")
+            print("  invalid host.")
 
     port = ""
     while not validate_port(port):
-        port = ask("Port (1-65535)")
+        port = ask("port (1-65535)")
         if not validate_port(port):
-            print("  ↳ Nieprawidłowy port.")
+            print("  invalid port.")
 
-    use_auth = ask_choice("Czy proxy wymaga logowania? (t/n)", ["t", "n"], "t") == "t"
+    use_auth = ask_choice("does the proxy require auth? (y/n)", ["y", "n"], "y") == "y"
     user = password = None
     if use_auth:
-        user = ask("Login")
-        password = ask("Hasło")
+        user = ask("username")
+        password = ask("password")
 
     proxy_url = build_proxy_url(scheme, host, port, user, password)
-    # zamaskowana wersja do wyświetlenia
     masked = re.sub(r"://[^@]+@", "://***:***@", proxy_url)
     print(f"\n      PROXY_URL = {yellow(masked)}")
 
-    # --- 3. Test IP przez proxy ---
-    print("\n[3/6] Testuję IP przez proxy (api.ipify.org)...")
+    print("\n[3/5] testing IP through proxy...")
     proxied_ip = test_ip(proxy_url)
     if not proxied_ip:
-        print(red("      ✗ Proxy nie odpowiada lub nie działa."))
-        print("      Wskazówki:")
-        print("      • Sprawdź host/port/login/hasło")
-        print("      • Dla socks5 zainstaluj: pip install 'requests[socks]'")
-        print("      • Upewnij się, że proxy nie wymaga IP whitelistingu")
+        print(red("      proxy not responding."))
+        print("      tips:")
+        print("      - check host/port/login/password")
+        print("      - for socks5 install: pip install 'requests[socks]'")
+        print("      - proxy may require IP whitelist")
         sys.exit(2)
-
-    print(f"      IP przez proxy: {green(proxied_ip)}")
+    print(f"      proxy IP: {green(proxied_ip)}")
 
     if direct_ip and proxied_ip == direct_ip:
-        print(yellow("      ⚠ IP się NIE zmieniło — proxy może nie działać poprawnie."))
+        print(yellow("      IP did not change - proxy may not be working."))
 
-    # --- 4. Test Stripchat API przez proxy ---
-    print("\n[4/6] Testuję Stripchat API przez proxy...")
-    code = test_stripchat(proxy_url)
+    print("\n[4/5] testing Stripchat HTML page through proxy...")
+    code = test_stripchat_html(proxy_url)
     print(f"      HTTP: {code}")
+    ok_status = code in (200, 404)
 
-    ok_status = code in (200, 404)  # 404 = model 'test' nie istnieje, ale API odpowiada
     if ok_status:
-        print(green(f"      ✓ Proxy działa z API Stripchat (status {code})"))
+        print(green(f"      proxy works with Stripchat (status {code})"))
     else:
-        print(red(f"      ✗ API zwraca {code} — proxy też jest blokowane lub coś nie działa"))
+        print(red(f"      Stripchat returns {code} - proxy is blocked or not working"))
 
-    # --- 5. Zapisz do .env ---
-    print("\n[5/6] Zapisuję PROXY_URL do .env...")
+    print("\n[5/5] saving PROXY_URL to .env...")
     if not os.path.exists(ENV_FILE):
-        print(yellow("      .env nie istnieje — utworzę minimalny"))
-        write_env({"PROXY_URL": proxy_url,
-                   "BOT_TOKEN": "",
-                   "USER_ID": "",
-                   "MODELS": "",
-                   "CHECK_INTERVAL": "300",
-                   "SEND_LIVE_NOTIFY": "1"})
+        write_env({
+            "PROXY_URL": proxy_url,
+            "BOT_TOKEN": "",
+            "USER_ID": "",
+            "CHECK_INTERVAL": "1800",
+            "MAX_HTML_BYTES": "600000",
+            "SESSION_ROTATE_EVERY": "100",
+            "HTTP_TIMEOUT": "45",
+        })
     else:
         write_env({"PROXY_URL": proxy_url})
-    print(green("      ✓ Zapisano (backup: .env.bak)"))
+    print(green("      saved (backup: .env.bak)"))
 
-    # --- 6. Podsumowanie ---
-    print("\n[6/6] " + cyan("PODSUMOWANIE"))
-    print(f"      IP bez proxy:    {direct_ip}")
-    print(f"      IP przez proxy:  {proxied_ip}")
-    print(f"      Stripchat test:  {code}")
+    print("\n" + cyan("summary"))
+    print(f"      direct IP:   {direct_ip}")
+    print(f"      proxy IP:    {proxied_ip}")
+    print(f"      Stripchat:   {code}")
     if ok_status:
-        print(green("\n  ✓ PROXY DZIAŁA — zrestartuj bota: python3 app.py"))
+        print(green("\n  proxy works - restart the bot: python3 app.py"))
     else:
-        print(red("\n  ✗ PROXY NIE DZIAŁA z API Stripchat"))
-        print("  Wskazówki:")
-        print("  • Spróbuj proxy rezydencjonalnego (nie datacenter)")
-        print("  • Niektóre proxy mobilne (4G) są mniej wykrywalne")
-        print("  • Sprawdź czy proxy nie jest już na blackliście CF")
+        print(red("\n  proxy does not work with Stripchat"))
+        print("  tips:")
+        print("  - use residential or mobile proxy (not datacenter)")
+        print("  - try mobile 4G/LTE - rarely blocked")
         sys.exit(3)
 
 
@@ -296,5 +258,5 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\nPrzerwano.")
+        print("\ninterrupted.")
         sys.exit(1)
