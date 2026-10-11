@@ -1,16 +1,14 @@
-# Stripchat Discord Monitor
+# Stripchat Discord Sniper
 
 A lightweight Discord bot that monitors selected Stripchat models and sends you a
 direct message the moment one of them goes LIVE. It runs quietly in the
 background 24/7 on a low cost VPS, using minimal CPU and bandwidth. Notifications
-are sent only on the offline to live transition, so there is no spam or duplicate
+are sent only on the offline → live transition, so there is no spam or duplicate
 alerts. Setup takes about five minutes.
 
 ---
 
-![file](https://static.iimg.live/uploads/ultimate-photo-2669.png)
-
-
+![banner](https://static.iimg.live/uploads/ultimate-photo-2669.png)
 
 ## Support the project
 
@@ -42,8 +40,8 @@ If this bot is useful to you, you can send a small gift:
 
 ## Installation
 
-    git clone https://github.com/marcindn/stripchat-monitor.git
-    cd stripchat-monitor
+    git clone https://github.com/marcindn/stripchat-sniper.git
+    cd stripchat-sniper
     pip install -r requirements.txt
 
 ## Configuration
@@ -103,4 +101,3 @@ Recommended: mobile 4G/LTE proxies. They are rarely blocked.
 ## License
 
 [MIT](https://opensource.org/license/MIT)
-
