@@ -18,30 +18,12 @@ If this bot is useful to you, you can send a small gift:
 
 **ETH:** `0xdAcfCfF1E567b4d15b1c8D88eC3c80aDb50017b2`
 
-
 ## Important notes
 
-This version uses HTML parsing instead of the official Stripchat API.
-Reason: the API endpoint (`/api/front/v2/models/.../cam`) is behind Cloudflare
-and returns HTTP 418 for most datacenter and even some residential proxies.
-The HTML page of the model loads fine, so the bot reads the status directly
-from the rendered page.
-
-Key implementation details:
-
-- HTML is downloaded in streaming mode and parsing stops as soon as the status
-  is found. This keeps proxy bandwidth usage low (usually 400-500 KB per check
-  instead of the full page).
-- `MAX_HTML_BYTES` controls the download limit per check. Default 600000 bytes.
-  Lower values save bandwidth but may miss the status on some pages.
-- No external captcha solver is used. Cloudflare challenge is bypassed by
-  reading public HTML only.
-- No viewer count. Only online/offline detection.
-- Requires a residential or mobile proxy. Datacenter proxies (AWS, OVH,
-  DigitalOcean, most cheap providers) are blocked by Cloudflare and will return
-  418.
-
----
+- This version reads the model's public HTML page instead of the official API
+  (the API is behind Cloudflare and returns HTTP 418 for most proxies).
+- Only online/offline detection is supported. No viewer count.
+- A residential or mobile proxy is required. Datacenter IPs are blocked.
 
 ## Features
 
